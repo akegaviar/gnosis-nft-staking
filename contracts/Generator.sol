@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -151,7 +151,7 @@ contract Generator is Ownable, ReentrancyGuard, IERC721Receiver {
     }
 
     function ownedByThis(uint256 fuelId) public view returns (bool) {
-        return address(fuel.ownerOf(fuelId)) == address(this);
+        return address(fuel.ownerOf(fuelId)) == generatorAddress();
     }
 
     function onERC721Received(
