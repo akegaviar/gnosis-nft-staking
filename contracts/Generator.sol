@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -55,12 +55,14 @@ contract Generator is Ownable, ReentrancyGuard, IERC721Receiver {
 
     function unstake(uint256 fuelId) public nonReentrant {
         // safe checks
-        require(ownedByThis(fuelId), "This fuel is not being loaded here!");
+        require(ownedByThis(fuelId), "Unstake: This fuel is not being loaded!");
 
         require(
-            _loaderOf(fuelId) == address(msg.sender),
+            _loaderOf(fuelId) == msg.sender,
             "You haven't loaded this fuel here!"
         );
+
+        claim(fuelId);
 
         uint256 lastFuelIndex = loaders[msg.sender].fuelIds.length - 1;
         uint256 fuelIndex = fuelIdIndex[msg.sender][fuelId];
@@ -75,22 +77,21 @@ contract Generator is Ownable, ReentrancyGuard, IERC721Receiver {
 
         // remove the last element from mapping and array
         delete fuelIdIndex[msg.sender][fuelId];
-        delete loaders[msg.sender].fuelIds[lastFuelIndex];
+        loaders[msg.sender].fuelIds.pop();
 
-        delete loaders[msg.sender].loadBlock[fuelId];
-        delete loaderOf[fuelId];
+        loaders[msg.sender].loadBlock[fuelId];
+        loaderOf[fuelId] = address(0);
 
         // Transfer back to the owner
-        fuel.safeTransferFrom(address(this), address(msg.sender), fuelId);
-        claim(fuelId);
+        fuel.safeTransferFrom(address(this), msg.sender, fuelId);
     }
 
     function claim(uint256 fuelId) public {
         // safe checks
-        require(ownedByThis(fuelId), "This fuel is not being loaded here!");
+        require(ownedByThis(fuelId), "Claim: This fuel is not being loaded!");
 
         require(
-            _loaderOf(fuelId) == address(msg.sender),
+            _loaderOf(fuelId) == msg.sender,
             "You haven't loaded this fuel here!"
         );
 
@@ -120,19 +121,26 @@ contract Generator is Ownable, ReentrancyGuard, IERC721Receiver {
         view
         returns (uint256)
     {
+        if (_loaderOf(fuelId) != account) {
+            return 0;
+        }
         uint256 loadBlock = loaders[account].loadBlock[fuelId];
         uint256 blocksElapsed = block.number - loadBlock;
 
         return blocksElapsed * rewardsPerBlock;
     }
 
-    function getAllPendingRewards() public view returns (uint256) {
-        uint256 totalFuelLoaded = totalFuelLoadedBy(msg.sender);
+    function getAllPendingRewards(address account)
+        public
+        view
+        returns (uint256)
+    {
+        uint256 totalFuelLoaded = totalFuelLoadedBy(account);
 
         uint256 totalRewards = 0;
         for (uint256 i = 0; i < totalFuelLoaded; i++) {
-            uint256 fuelId = loaders[msg.sender].fuelIds[i];
-            totalRewards += getPendingRewards(msg.sender, fuelId);
+            uint256 fuelId = loaders[account].fuelIds[i];
+            totalRewards += getPendingRewards(account, fuelId);
         }
 
         return totalRewards;

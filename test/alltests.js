@@ -67,54 +67,65 @@ contract("Loader test", (accounts) => {
 
     // check that owner of fuelId is staking contract
     expect(fuel.ownerOf(0)).to.eventually.be.equal(generator.address);
+
+    // check owner 2
+    expect(generator.ownedByThis(0)).to.eventually.be.equal(true);
   });
 
-  // it("should unstake fuel from generator contract", async () => {
-  //   // init contract instances
-  //   let fuel = await Fuel.deployed();
-  //   let generator = await Generator.deployed();
+  it("should unstake fuel from generator contract", async () => {
+    // init contract instances
+    let energy = await Energy.deployed();
+    let fuel = await Fuel.deployed();
+    let generator = await Generator.deployed();
 
-  //   // get balance before unstaking
-  //   let balanceOf = await fuel.balanceOf(loader);
+    // set staking contract as minter
+    await energy.addMinter(generator.address, { from: deployer });
 
-  //   // lets unstake
-  //   await generator.unstake(0, { from: loader });
+    // get balance before unstaking
+    let balanceOf = await fuel.balanceOf(loader);
 
-  //   // Check that the nft was transfered to staking contract
-  //   expect(fuel.balanceOf(loader)).to.eventually.be.a.bignumber.equal(
-  //     new BN(balanceOf + 1)
-  //   );
+    // lets unstake
+    await generator.unstake(0, { from: loader });
 
-  //   // Check that loader has no fuel staked
-  //   expect(
-  //     generator.totalFuelLoadedBy(loader)
-  //   ).to.eventually.be.a.bignumber.equal(new BN(0));
+    expect(fuel.ownerOf(0)).to.eventually.be.equal(loader);
 
-  //   // Check that loader of token 0 is not loader account
-  //   expect(generator._loaderOf(0)).to.eventually.be.not.equal(loader);
+    expect(generator.ownedByThis(0)).to.eventually.be.false;
 
-  //   // check that owner of fuelId is loader
-  //   expect(fuel.ownerOf(0)).to.eventually.be.equal(loader);
+    // Check that the nft was transfered back from staking contract
+    expect(fuel.balanceOf(loader)).to.eventually.be.a.bignumber.equal(
+      new BN(balanceOf + 1)
+    );
 
-  //   // check if pending rewards from token are now zero
-  //   expect(
-  //     generator.getPendingRewards(0, { from: loader })
-  //   ).to.eventually.be.a.bignumber(new BN(0));
-  // });
+    // Check that loader has no fuel staked
+    expect(
+      generator.totalFuelLoadedBy(loader)
+    ).to.eventually.be.a.bignumber.equal(new BN(0));
+
+    // Check that loader of token 0 is not loader account
+    expect(generator._loaderOf(0)).to.eventually.be.not.equal(loader);
+
+    // check that owner of fuelId is loader
+    expect(fuel.ownerOf(0)).to.eventually.be.equal(loader);
+
+    // check if pending rewards from token are now zero
+    expect(
+      generator.getPendingRewards(loader, 0)
+    ).to.eventually.be.a.bignumber.equal(new BN(0));
+  });
 
   it("should return pending rewards from staked fuel", async () => {
     let generator = await Generator.deployed();
     let fuel = await Fuel.deployed();
 
     // stake fuel minted on previous tests
-    // await generator.stake(0, { from: loader });
+    await generator.stake(0, { from: loader });
 
-    // lets forward 2 blocks by mining 2 transactions (rewards should be 5*2 blocks = 10)
+    // lets forward 2 blocks by mining 2 transactions (rewards should be 5*3 blocks = 10)
     await fuel.safeMint(loader, { from: deployer });
     await fuel.safeMint(loader, { from: deployer });
 
     expect(
-      generator.getAllPendingRewards({ from: loader })
+      generator.getPendingRewards(loader, 0)
     ).to.eventually.be.a.bignumber.equal(new BN(10));
   });
 
@@ -122,21 +133,18 @@ contract("Loader test", (accounts) => {
     let energy = await Energy.deployed();
     let generator = await Generator.deployed();
 
-    // set staking contract as minter
-    await energy.addMinter(generator.address, { from: deployer });
-
     // lets claim rewards
     await generator.claimAll({ from: loader });
 
     // check that rewards were minted properly
-    const expectedBalance = web3.utils.toWei("20", "ether");
+    const expectedBalance = web3.utils.toWei("25", "ether");
     expect(energy.balanceOf(loader)).to.eventually.be.a.bignumber.equal(
       new BN(expectedBalance)
     );
 
     // check that pending rewards are now 5 * 1 (block elapsed) = 5
     expect(
-      generator.getAllPendingRewards({ from: loader })
+      generator.getAllPendingRewards(loader)
     ).to.eventually.be.a.bignumber.equal(new BN(5));
   });
 });
